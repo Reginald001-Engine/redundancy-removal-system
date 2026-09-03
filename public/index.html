@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redundancy Removal System</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
+        body { background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); min-height: 100vh; padding: 40px 20px; color: #333; }
+        
+        .container { max-width: 900px; margin: 0 auto; }
+        
+        h1 { text-align: center; color: white; margin-bottom: 30px; font-size: 2.5em; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
+        
+        .card { background: white; border-radius: 15px; padding: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); margin-bottom: 30px; }
+        
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-weight: bold; color: #555; }
+        input { width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 16px; transition: border 0.3s; }
+        input:focus { border-color: #2a5298; outline: none; }
+        
+        button { width: 100%; padding: 15px; background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; transition: transform 0.2s; }
+        button:hover { transform: translateY(-2px); }
+
+        .result-box { margin-top: 20px; padding: 15px; border-radius: 8px; display: none; font-weight: bold; text-align: center; }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; display: block; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; display: block; }
+        .warning { background: #fff3cd; color: #856404; border: 1px solid #ffeeba; display: block; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background: #f8f9fa; color: #555; }
+        tr:hover { background: #f1f3f5; }
+        
+        .badge { padding: 5px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; color: white; }
+        .badge-verified { background: #28a745; }
+        .badge-redundant { background: #dc3545; }
+        .badge-false { background: #ffc107; color: #333; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>🛡️ Redundancy Removal System</h1>
+
+        <!-- Data Entry Form -->
+        <div class="card">
+            <h2 style="margin-bottom: 20px; color: #1e3c72;">Add New User Data</h2>
+            <div class="form-group">
+                <label>Full Name</label>
+                <input type="text" id="name" placeholder="e.g. John Doe">
+            </div>
+            <div class="form-group">
+                <label>Email Address</label>
+                <input type="email" id="email" placeholder="e.g. john@example.com">
+            </div>
+            <div class="form-group">
+                <label>Phone Number</label>
+                <input type="text" id="phone" placeholder="e.g. 123-456-7890">
+            </div>
+            <button onclick="submitData()">Validate & Add to Database</button>
+            
+            <div id="resultBox" class="result-box"></div>
+        </div>
+
+        <!-- Database View -->
+        <div class="card">
+            <h2 style="margin-bottom: 20px; color: #1e3c72;">☁️ Cloud Database Records</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Phone</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="dbTable">
+                    <!-- Data will be injected here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        async function submitData() {
+            const name = document.getElementById('name').value;
+            const email = document.getElementById('email').value;
+            const phone = document.getElementById('phone').value;
+            const resultBox = document.getElementById('resultBox');
+
+            if (!name || !email) {
+                resultBox.className = 'result-box error';
+                resultBox.innerText = "Please fill in Name and Email!";
+                return;
+            }
+
+            try {
+                const response = await fetch('http://localhost:3001/api/add-data', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, email, phone })
+                });
+                
+                const data = await response.json();
+                
+                // Show Result
+                resultBox.className = 'result-box';
+                if (data.classification.status === "ACCEPTED") {
+                    resultBox.classList.add('success');
+                    resultBox.innerText = `✅ ${data.message} [${data.classification.reason}]`;
+                } else if (data.classification.status === "REJECTED") {
+                    resultBox.classList.add('error');
+                    resultBox.innerText = `❌ ${data.message} [${data.classification.reason}]`;
+                } else {
+                    resultBox.classList.add('warning');
+                    resultBox.innerText = `⚠️ ${data.message} [${data.classification.reason}]`;
+                }
+
+                // Clear inputs and refresh table
+                document.getElementById('name').value = '';
+                document.getElementById('email').value = '';
+                document.getElementById('phone').value = '';
+                loadDatabase();
+
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        async function loadDatabase() {
+            try {
+                const response = await fetch('http://localhost:3001/api/data');
+                const data = await response.json();
+                const tableBody = document.getElementById('dbTable');
+                tableBody.innerHTML = '';
+
+                data.forEach(entry => {
+                    const row = `
+                        <tr>
+                            <td>${entry.name}</td>
+                            <td>${entry.email}</td>
+                            <td>${entry.phone || 'N/A'}</td>
+                            <td><span class="badge badge-verified">Verified & Unique</span></td>
+                        </tr>
+                    `;
+                    tableBody.innerHTML += row;
+                });
+            } catch (error) {
+                console.error('Error loading DB:', error);
+            }
+        }
+
+        // Load data on page load
+        loadDatabase();
+    </script>
+</body>
+</html>
